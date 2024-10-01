@@ -1,0 +1,92 @@
+---
+title: "Assignment 2"
+format: 
+  html:
+    self-contained: true
+    code-tools: 
+      source: true
+---
+  
+### Gina Brøten
+```{r}
+#| label: setup of packages
+#| message: false
+
+library(tidyverse)
+library(readxl)
+library(lubridate)
+library(rnaturalearth)
+library(sf)
+```
+
+```{r}
+#| label: importing and making a table with only the preffered columns  & creating a new column with the lubridate showing the week day of the observations, and filtering for only showing the first 22 weeks
+#| message: false
+#| output: false
+
+bluethroat_import <- read_xlsx(
+  path = "data/ExcelExport_8986780_Page_1.xlsx",
+  skip = 2,
+  col_types = c("guess"))
+
+bluethroat_columns <- bluethroat_import |> 
+ select(17, 18, 26)
+
+colnames(bluethroat_columns) <- c("east_coord", "north_coord", "start_date")
+bluethroat_columns$week_number <- week(ymd(bluethroat_columns$start_date))
+
+
+```
+```{r}
+#| label: creating different datasets for each year up to week 22
+#| message: false
+
+bluethroat_combined <- bluethroat_columns |> 
+  filter(week_number <= 22 & year(start_date) %in% c(2023, 2024)) |> 
+  mutate(year = year(start_date))
+
+```
+
+```{r}
+#| label: calculation centroids for both years, and the weeks with more than 10 observations for both years. Converting the centroids, europe map for rnaturaleart and the bluethroat data to sf objects for mapping
+#| message: false
+
+
+centroids_combined <- bluethroat_combined |> 
+  group_by(year, week_number) |> 
+  summarise(
+    count = n(),
+    centroid_east = mean(east_coord, na.rm = TRUE),
+    centroid_north = mean(north_coord, na.rm = TRUE),
+    .groups = "drop"
+  ) |> 
+  filter(count >= 10)
+
+europe <- ne_countries(scale = "medium", returnclass = "sf")
+centroids_sf_combined <- st_as_sf(centroids_combined, coords = c("centroid_east", "centroid_north"), crs = 25833)
+bluethroat_sf_combined <- st_as_sf(bluethroat_combined, coords = c("east_coord", "north_coord"), crs = 25833)
+
+```
+
+```{r}
+#| label: creating a map showing the two years, with observations from each week illustrated by different colors
+#| message: false
+
+bluethroat_migration_combined <- ggplot() +
+  geom_sf(data = europe, fill = "grey75", color = "black") +
+  geom_sf(data = centroids_sf_combined, aes(color = as.factor(week_number), shape = "Centroid"), size = 4) +
+  geom_sf(data = bluethroat_sf_combined, aes(color = as.factor(week_number), fill = as.factor(week_number), shape = "Observation"), size = 0.5, stroke = 0.5) +
+  scale_color_viridis_d(option = "plasma", name = "Week Number") +
+  scale_fill_viridis_d(option = "plasma", name = "Week Number") +
+  scale_shape_manual(name = "Type", values = c("Observation" = 21, "Centroid" = 18)) +
+  coord_sf(xlim = c(5, 30), ylim = c(55, 71)) +
+  labs(title = "Spring Migration for the Bluethroat in 2023 and 2024",
+       x = "East Coordinates",
+       y = "North Coordinates") +
+  theme_minimal() +
+  facet_wrap(~ year)
+
+print(bluethroat_migration_combined)
+```
+
+

@@ -1,0 +1,120 @@
+---
+title: "BIO300B Assignment1"
+format: 
+  html:
+    self-contained: true
+    code-tools: 
+      source: true
+---
+  
+
+```{r}
+#| label: setup
+#| message: false
+
+```
+
+First I'm importing the proper packages utlized in this assignment
+```{r}
+library(tidyverse)
+library(readxl)
+library(dplyr)
+```
+
+Here I'm importing the assigned Excel file, from a generic path in the folder "data", furthermore I'm setting the appropiate names for the columns. 
+```{r}
+predator_death <- read_xlsx(path = "data/03984_20240904-234805.xlsx",
+                            skip = 3,
+                            col_name = c("Region", "Cause of death", "Species", "Year", "Number of animals"))
+```
+
+```{r}
+predator_death_filled <- predator_death %>%
+  fill(`Cause of death`, `Species`, `Region` ,  .direction = "down")
+```
+
+```{r}
+predator_fixednames <- predator_death_filled |> 
+    mutate(`Cause of death` = case_when(
+    `Cause of death` %in% c("Animals felled under licence hunting", 
+                            "Animals felled under quota hunting") ~ "Legal hunting",
+    `Cause of death` %in% c("Animals killed by motor car", 
+                            "Animals killed by train") ~ "Hit by vehicle",
+    TRUE ~ `Cause of death`  
+  ))
+
+predator_fixednames
+```
+
+
+
+```{r}
+#predator_death_filled |> 
+  #filter(`Number of animals´ = 0)
+```
+
+Making a table showing the overall percentage of each species that die from each cause, together with the total number of deaths.
+
+
+```{r}
+#total antall døde per dødsårsak
+cause_of_death_summary <- predator_fixednames |>
+  group_by(`Cause of death`) |>
+  summarise(total_animals = sum(`Number of animals`, na.rm = TRUE))
+
+cause_of_death_summary
+
+```
+
+
+
+
+```{r}
+#legal_hunting_per_species <- predator_fixednames |> 
+  #filter(`Cause of death` == "Legal hunting") |>
+  #group_by(Species) |> 
+  #summarise(total_animals = sum(`Number of animals`, na.rm = TRUE)) |> 
+  #mutate(percentage = (total_animals /legal_hunting_allspecies$total_animals)*100)
+#legal_hunting_per_species
+
+```
+
+```{r}
+#totale døde per art av kategorien truffet av bil
+legal_hunting_per_species <- predator_fixednames |> 
+  filter(`Cause of death` == "Hit by vehicle") |>
+  group_by(Species) |> 
+  summarise(total_animals = sum(`Number of animals`, na.rm = TRUE))
+legal_hunting_per_species
+```
+
+
+```{r}
+
+# Calculate total number of deaths and percentages by species and cause of death
+species_cause_summary <- predator_fixednames |> 
+  group_by(Species, `Cause of death`) |> 
+  summarise(total_animals = sum(`Number of animals`, na.rm = TRUE), .groups = "drop") |>
+  group_by(Species) |> 
+  mutate(species_total = sum(total_animals, na.rm = TRUE)) |>
+  ungroup() |>
+  mutate(percentage = (total_animals / species_total) * 100) 
+
+# View the summary table
+species_cause_summary
+
+```
+
+```{r}
+pivot_wider(species_cause_summary, names_from = `Species`, values_from = total_animals)
+
+
+```
+
+```{r}
+species_cause_summarys <- species_cause_summary %>%
+  group_by(`Cause of death`) %>%
+  pivot_wider(names_from = Species´, values_from = total_animals)
+
+```
+
